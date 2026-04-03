@@ -1,0 +1,9 @@
+name: soc_triage_env
+version: 0.1.0
+description: Cybersecurity SOC Alert Triage Environment
+main: server/app.py
+entry_point: server
+tasks:
+  - single_categorize
+  - full_triage
+  - executive_inbox
