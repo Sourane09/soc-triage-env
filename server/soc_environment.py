@@ -20,6 +20,22 @@ from .graders import (
 )
 from ..models import SecurityAlert, SOCTriageAction, SOCTriageState
 
+
+def _safe_clamp(value, default: float = 0.001) -> float:
+    """Defensive clamp: never returns 0.0, never returns 1.0, never returns NaN/None."""
+    try:
+        s = float(value) if value is not None else default
+    except (TypeError, ValueError):
+        return default
+    if s != s:  # NaN
+        return default
+    if s <= 0.0:
+        return 0.001
+    if s >= 1.0:
+        return 0.999
+    return s
+
+
 class SOCTriageEnvironment(MCPEnvironment):
     def __init__(self):
         mcp = FastMCP("soc_triage_env")
@@ -82,12 +98,12 @@ class SOCTriageEnvironment(MCPEnvironment):
         self._processed_count = 0
         self._actions_taken: List[SOCTriageAction] = []
         self._investigation_states: List[dict] = []
-        
+
         # Track active investigation state for the current alert
         self._current_investigated_ip = False
         self._current_investigated_host = False
         self._current_investigated_hash = False
-        
+
         self._rewards: List[float] = []
         self._cumulative_reward = 0.0
         self._done = False
@@ -128,11 +144,11 @@ class SOCTriageEnvironment(MCPEnvironment):
         self._processed_count = 0
         self._actions_taken = []
         self._investigation_states = []
-        
+
         self._current_investigated_ip = False
         self._current_investigated_host = False
         self._current_investigated_hash = False
-        
+
         self._rewards = []
         self._cumulative_reward = 0.0
         self._done = False
@@ -156,51 +172,89 @@ class SOCTriageEnvironment(MCPEnvironment):
                 "available_categories": CATEGORIES,
                 "available_priorities": PRIORITIES,
                 "available_departments": DEPARTMENTS,
-                "message": (f"SOC triage environment ready. You have {self._total_alerts} alerts to process.\n"
-                           "IMPORTANT: Investigate IP, Host, and Hash evidence before calling triage_alert() "
-                           "or you will suffer massive penalties."),
+                "message": (
+                    f"SOC triage environment ready. You have {self._total_alerts} alerts to process.\n"
+                    "IMPORTANT: Investigate IP, Host, and Hash evidence before calling triage_alert() "
+                    "or you will suffer massive penalties."
+                ),
             },
         )
 
     # --- Investigation Tools (DO NOT END TURN) ---
     def _tool_query_ip(self, ip_address: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done."}
+            return {"error": "Episode is done.", "reward": 0.001, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_ip = True
-        
+
         if ip_address == alert.source_ip:
             if alert.malicious:
-                return {"result": f"IP {ip_address} is listed on multiple Threat Intelligence Feeds as a known malicious node.", "reward": 0.001, "done": False}
+                return {
+                    "result": f"IP {ip_address} is listed on multiple Threat Intelligence Feeds as a known malicious node.",
+                    "reward": 0.001,
+                    "done": False,
+                }
             else:
-                return {"result": f"IP {ip_address} originates from an authorized Corporate VPN endpoint.", "reward": 0.001, "done": False}
-        return {"result": f"IP {ip_address} not found in current alert context or is benign.", "reward": 0.001, "done": False}
+                return {
+                    "result": f"IP {ip_address} originates from an authorized Corporate VPN endpoint.",
+                    "reward": 0.001,
+                    "done": False,
+                }
+        return {
+            "result": f"IP {ip_address} not found in current alert context or is benign.",
+            "reward": 0.001,
+            "done": False,
+        }
 
     def _tool_search_logs(self, host_name: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done."}
+            return {"error": "Episode is done.", "reward": 0.001, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_host = True
-        
+
         if host_name == alert.host_name:
             if alert.malicious:
-                return {"result": f"Host {host_name} logs indicate rapid file encryption and outbound connections. Compromise is highly likely.", "reward": 0.001, "done": False}
+                return {
+                    "result": f"Host {host_name} logs indicate rapid file encryption and outbound connections. Compromise is highly likely.",
+                    "reward": 0.001,
+                    "done": False,
+                }
             else:
-                return {"result": f"Host {host_name} logs indicate normal approved behavior matching scheduled maintenance windows.", "reward": 0.001, "done": False}
-        return {"result": f"Host {host_name} has no abnormal logs.", "reward": 0.001, "done": False}
+                return {
+                    "result": f"Host {host_name} logs indicate normal approved behavior matching scheduled maintenance windows.",
+                    "reward": 0.001,
+                    "done": False,
+                }
+        return {
+            "result": f"Host {host_name} has no abnormal logs.",
+            "reward": 0.001,
+            "done": False,
+        }
 
     def _tool_check_hash(self, file_hash: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done."}
+            return {"error": "Episode is done.", "reward": 0.001, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_hash = True
-        
+
         if file_hash == alert.file_hash:
             if alert.malicious:
-                return {"result": f"Hash {file_hash} matches a known zero-day payload family (Confidence: 99%).", "reward": 0.001, "done": False}
+                return {
+                    "result": f"Hash {file_hash} matches a known zero-day payload family (Confidence: 99%).",
+                    "reward": 0.001,
+                    "done": False,
+                }
             else:
-                return {"result": f"Hash {file_hash} is digitally signed by Microsoft Corporation. Valid updater.", "reward": 0.001, "done": False}
-        return {"result": f"Hash {file_hash} not found in threat database.", "reward": 0.001, "done": False}
+                return {
+                    "result": f"Hash {file_hash} is digitally signed by Microsoft Corporation. Valid updater.",
+                    "reward": 0.001,
+                    "done": False,
+                }
+        return {
+            "result": f"Hash {file_hash} not found in threat database.",
+            "reward": 0.001,
+            "done": False,
+        }
 
     # --- Core Actions ---
     def _get_current_alert(self) -> dict:
@@ -215,7 +269,7 @@ class SOCTriageEnvironment(MCPEnvironment):
             "total": self._total_alerts,
             "processed": self._processed_count,
             "remaining": self._total_alerts - self._processed_count,
-            "cumulative_reward": round(self._cumulative_reward, 4),
+            "cumulative_reward": _safe_clamp(self._cumulative_reward / max(self._processed_count, 1)),
             "done": self._done,
         }
 
@@ -228,7 +282,12 @@ class SOCTriageEnvironment(MCPEnvironment):
         flag: bool = False,
     ) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "done": True, "final_score": round(self._cumulative_reward / max(self._processed_count, 1), 4)}
+            return {
+                "error": "Episode is done.",
+                "done": True,
+                "reward": 0.001,
+                "final_score": _safe_clamp(self._cumulative_reward / max(self._processed_count, 1)),
+            }
 
         errors = []
         if category.lower().strip() not in CATEGORIES:
@@ -240,7 +299,12 @@ class SOCTriageEnvironment(MCPEnvironment):
 
         if errors:
             self._last_error = "; ".join(errors)
-            return {"error": self._last_error, "done": False, "hint": "Fix the errors and try again. Turn not ended."}
+            return {
+                "error": self._last_error,
+                "done": False,
+                "reward": 0.001,
+                "hint": "Fix the errors and try again. Turn not ended.",
+            }
 
         action = SOCTriageAction(
             category=category.lower().strip(),
@@ -254,10 +318,10 @@ class SOCTriageEnvironment(MCPEnvironment):
         inv_state = {
             "ip": self._current_investigated_ip,
             "host": self._current_investigated_host,
-            "hash": self._current_investigated_hash
+            "hash": self._current_investigated_hash,
         }
         self._investigation_states.append(inv_state)
-        
+
         # Calculate intermediate step reward identical to final grading
         grader = TASK_GRADERS[self._task_name]
         try:
@@ -270,7 +334,7 @@ class SOCTriageEnvironment(MCPEnvironment):
         self._cumulative_reward += reward
         self._processed_count += 1
         self._current_index += 1
-        
+
         # Reset investigation state for next alert
         self._current_investigated_ip = False
         self._current_investigated_host = False
@@ -280,8 +344,10 @@ class SOCTriageEnvironment(MCPEnvironment):
         is_done = self._current_index >= len(self._alerts)
         self._done = is_done
 
+        clamped_reward = _safe_clamp(reward)
+
         result = {
-            "reward": round(max(0.001, min(0.999, reward)), 4),
+            "reward": clamped_reward,
             "done": is_done,
             "processed": self._processed_count,
             "remaining": self._total_alerts - self._processed_count,
@@ -290,7 +356,11 @@ class SOCTriageEnvironment(MCPEnvironment):
         if not is_done:
             result["next_alert"] = alert_to_dict(self._alerts[self._current_index])
         else:
-            final_score = grader.grade(self._actions_taken, self._alerts, self._investigation_states)
+            try:
+                raw_final = grader.grade(self._actions_taken, self._alerts, self._investigation_states)
+            except Exception:
+                raw_final = 0.5
+            final_score = _safe_clamp(raw_final, default=0.5)
             result["final_score"] = final_score
             result["message"] = f"Episode complete! Final graded score: {final_score:.4f}"
 

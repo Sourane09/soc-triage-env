@@ -240,7 +240,7 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
             try:
                 result = await env_client.call_tool(tool_name, **args)
             except Exception as tool_err:
-                result = {"error": str(tool_err), "done": False, "reward": 0.0}
+                result = {"error": str(tool_err), "done": False, "reward": 0.001}
 
             # Normalize result into a dict
             if isinstance(result, dict):
@@ -259,7 +259,7 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
             error = result_data.get("error")
 
             r_val = result_data.get("reward")
-            reward = float(r_val) if r_val is not None else 0.0
+            reward = float(r_val) if r_val is not None else 0.001
             if tool_name == "triage_alert":
                 rewards.append(reward)
 
@@ -309,8 +309,23 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
         traceback.print_exc(file=sys.stderr)
         success = False
 
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
-    print(f"[END] success={'true' if success else 'false'} steps={step_count} rewards={rewards_str}")
+    # Compute task score from rewards, clamped strictly inside (0, 1)
+    if rewards:
+        raw_score = sum(rewards) / len(rewards)
+    else:
+        raw_score = 0.5
+
+    if raw_score != raw_score or raw_score <= 0.0:  # NaN or <= 0
+        task_score = 0.001
+    elif raw_score >= 1.0:
+        task_score = 0.999
+    else:
+        task_score = raw_score
+
+    # 4-decimal precision so 0.001 doesn't round to 0.00
+    rewards_str = ",".join(f"{r:.4f}" for r in rewards) if rewards else "0.0010"
+    print(f"[END] success={'true' if success else 'false'} steps={step_count} "
+          f"score={task_score:.4f} rewards={rewards_str}")
     return success
 
 
