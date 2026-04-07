@@ -1,6 +1,10 @@
 from typing import Dict, List, Tuple
 from ..models import SecurityAlert, SOCTriageAction
 
+def _clamp_score(score: float) -> float:
+    """Clamp score to strictly within (0, 1) — never exactly 0.0 or 1.0."""
+    return max(0.001, min(0.999, score))
+
 def _category_score(predicted: str, true: str) -> float:
     return 1.0 if predicted.lower().strip() == true.lower().strip() else 0.0
 
@@ -80,7 +84,7 @@ class SingleCategorizeGrader:
             inv_multiplier = _investigation_score(investigative_states[i], alerts[i])
             total += base_score * inv_multiplier
             
-        return round(total / n, 4)
+        return _clamp_score(round(total / n, 4))
 
 class FullTriageGrader:
     def grade(
@@ -108,7 +112,7 @@ class FullTriageGrader:
             
             total += base_score * inv_multiplier
 
-        return round(total / n, 4)
+        return _clamp_score(round(total / n, 4))
 
 class ExecutiveInboxGrader:
     def grade(
@@ -145,7 +149,7 @@ class ExecutiveInboxGrader:
         completeness = n_processed / n_alerts
 
         final = (0.90 * avg_quality) + (0.10 * completeness)
-        return round(final, 4)
+        return _clamp_score(round(final, 4))
 
 TASK_GRADERS = {
     "single_categorize": SingleCategorizeGrader(),

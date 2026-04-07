@@ -281,7 +281,7 @@ class SOCTriageEnvironment(MCPEnvironment):
         self._done = is_done
 
         result = {
-            "reward": round(reward, 2),
+            "reward": round(max(0.001, min(0.999, reward)), 4),
             "done": is_done,
             "processed": self._processed_count,
             "remaining": self._total_alerts - self._processed_count,
