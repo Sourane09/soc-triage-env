@@ -71,7 +71,7 @@ class SingleCategorizeGrader:
         investigative_states: List[dict] = None
     ) -> float:
         if not actions or not alerts:
-            return 0.0
+            return _clamp_score(0.0)
 
         if not investigative_states:
             investigative_states = [{} for _ in alerts]
@@ -94,7 +94,7 @@ class FullTriageGrader:
         investigative_states: List[dict] = None
     ) -> float:
         if not actions or not alerts:
-            return 0.0
+            return _clamp_score(0.0)
 
         if not investigative_states:
             investigative_states = [{} for _ in alerts]
@@ -122,7 +122,7 @@ class ExecutiveInboxGrader:
         investigative_states: List[dict] = None
     ) -> float:
         if not alerts:
-            return 0.0
+            return _clamp_score(0.0)
             
         if not investigative_states:
             investigative_states = [{} for _ in alerts]
@@ -131,7 +131,7 @@ class ExecutiveInboxGrader:
         n_processed = min(len(actions), n_alerts)
 
         if n_processed == 0:
-            return 0.0
+            return _clamp_score(0.0)
 
         total = 0.0
         for i in range(n_processed):
