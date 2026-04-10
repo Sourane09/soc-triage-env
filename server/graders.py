@@ -73,9 +73,9 @@ def _investigation_score(state_tracker: dict, alert: SecurityAlert) -> float:
             done += 1
 
     if needed == 0:
-        return 0.95  # never exactly 1.0
+        return 1.0  # No investigation needed, full multiplier
 
-    return 0.5 + (0.45 * (done / needed))  # max 0.95, never exactly 1.0
+    return 0.5 + (0.5 * (done / needed))  # Range: 0.5 to 1.0
 
 
 class SingleCategorizeGrader:

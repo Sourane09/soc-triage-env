@@ -52,7 +52,8 @@ All graders return scores in the range `0.0 – 1.0`. Agents that skip investiga
 
 - **Investigation multiplier**: If an alert has indicators (IP, host, hash), the agent must call the corresponding tool. Skipping investigation reduces the score by `0.5 + 0.5 * (investigated / required)`.
 - **Partial credit**: Priority scores give 0.4 for off-by-one errors, 0.1 for off-by-two.
-- **Per-step rewards**: Each `triage_alert` call returns an immediate reward. Investigation tools return `reward=0.0` (informational only).
+- **Per-step rewards**: Each `triage_alert` call returns an immediate reward in `(0, 1)`. Investigation tools return `reward=0.001` (informational only).
+- **Score clamping**: All grader outputs are clamped to `(0.001, 0.999)` — scores are never exactly 0.0 or 1.0.
 
 ## Setup
 
@@ -74,10 +75,10 @@ python inference.py
 
 ## Baseline Scores
 
-Model: `meta-llama/Llama-3.3-70B-Instruct`
+Model: `Qwen/Qwen2.5-72B-Instruct`
 
-| Task | Steps | Rewards | Notes |
-|------|-------|---------|-------|
-| `single_categorize` | 9 | 0.00, 0.00, 0.75, 1.00, 0.00 | Perfect 1.0 on DDoS alert |
-| `full_triage` | 10 | 0.00, 0.00, 0.50, 0.00, 0.01, 0.06, 0.09, 0.32 | Multi-field scoring |
-| `executive_inbox` | 13 | 0.10, 0.46, 0.10, 0.36, 0.11, 0.14, 0.36, 0.46, 0.10, 0.36, 0.46, 0.46 | High-volume triage |
+| Task | Alerts | Grading Focus |
+|------|--------|---------------|
+| `single_categorize` | 5 | Category accuracy × investigation |
+| `full_triage` | 8 | Category (40%) + Priority (30%) + Routing (30%) |
+| `executive_inbox` | 12 | Category + Priority + Routing + Response + Completeness |

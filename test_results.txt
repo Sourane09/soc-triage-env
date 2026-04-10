@@ -1,0 +1,36 @@
+TEST 1: Score clamping - never 0.0 or 1.0
+  clamp(0.0) = 0.001
+  clamp(1.0) = 0.999
+  clamp(-1.0) = 0.001
+  clamp(2.0) = 0.999
+  clamp(0.5) = 0.5
+  clamp(0.001) = 0.001
+  clamp(0.999) = 0.999
+  clamp(None) = 0.5
+
+TEST 2: Routing matches system prompt
+  malware -> incident_response (with critical: incident_response)
+  phishing -> tier1 (with critical: tier1)
+  ddos -> networking (with critical: networking)
+  exfiltration -> incident_response (with critical: incident_response)
+  false_alarm -> false_positive (with critical: false_positive)
+  compliance -> legal (with critical: legal)
+
+TEST 3: All 3 tasks produce valid scores in (0,1)
+  single_categorize: final=0.9990, alerts=5, rewards=[1.00,1.00,1.00,1.00,1.00]
+  full_triage: final=0.9990, alerts=8, rewards=[1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00]
+  executive_inbox: final=0.8650, alerts=12, rewards=[0.87,0.87,0.87,0.87,0.87,0.87,0.87,0.87,0.87,0.87,0.87,0.87]
+
+TEST 4: Output format regex compliance
+  [START]: [START] task=single_categorize env=soc_triage_env model=Qwen/Qwen2.5-72B-Instruct
+  [STEP]: [STEP] step=1 action=triage_alert({{"category":"malware"}}) reward=0.50 done=false error=null
+  [END]: [END] success=true steps=4 rewards=0.00,0.50,0.00,0.75
+
+TEST 5: Investigation score logic
+  No investigation needed: 1.0
+  All needed, none done: 0.5
+  All needed, all done: 1.0
+  Perfect score after clamp: 0.999
+
+============================================================
+✅ ALL TESTS PASSED

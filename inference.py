@@ -8,9 +8,11 @@ import traceback
 from typing import List
 from openai import OpenAI
 
-API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK = os.getenv("SOC_TRIAGE_BENCHMARK", "soc_triage_env")
 MAX_STEPS = 50
 TEMPERATURE = 0.3
@@ -21,25 +23,29 @@ TASKS = ["single_categorize", "full_triage", "executive_inbox"]
 SYSTEM_PROMPT = textwrap.dedent("""\
 You are an expert Level 2 SOC Analyst. You process security alerts by calling tools.
 
-CRITICAL RULES:
+RULES:
 - You MUST call tools using the function calling interface. Do NOT write text responses.
 - For EVERY alert, follow this exact sequence:
-  1. If you see an IP address, call query_ip_reputation with that IP
-  2. If you see a hostname, call search_internal_logs with that hostname
-  3. If you see a file hash, call check_file_hash with that hash
-  4. After investigating, call triage_alert with your classification
+  1. If the alert has an IP address, call query_ip_reputation with that IP
+  2. If the alert has a hostname, call search_internal_logs with that hostname
+  3. If the alert has a file hash, call check_file_hash with that hash
+  4. After ALL investigation tools, call triage_alert with classification and a brief response_draft
 
 Categories: malware, phishing, ddos, exfiltration, false_alarm, compliance
 Priorities: low, medium, high, critical
 Routing: tier1, networking, incident_response, legal, false_positive
 
-Quick reference:
+Classification guide:
 - Malware/ransomware -> category=malware, priority=high/critical, route_to=incident_response
 - Phishing/suspicious login -> category=phishing, priority=high, route_to=tier1
 - DDoS/SYN flood -> category=ddos, priority=high, route_to=networking
 - Data exfiltration -> category=exfiltration, priority=critical, route_to=incident_response
 - False alarm/authorized scan -> category=false_alarm, priority=low, route_to=false_positive
 - Compliance violation -> category=compliance, priority=medium, route_to=legal
+
+Investigation hints:
+- "malicious" / "known malware" / "compromise" / "zero-day" -> real threat
+- "corporate VPN" / "authorized" / "maintenance" / "legitimate" / "signed" -> false_alarm
 """)
 
 
@@ -120,7 +126,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "triage_alert",
-            "description": "Submit your final triage decision for the current alert. Only call after investigating.",
+            "description": "Submit your final triage decision for the current alert. Only call after investigating with other tools first.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -138,6 +144,10 @@ TOOLS = [
                         "type": "string",
                         "enum": ["tier1", "networking", "incident_response", "legal", "false_positive"],
                         "description": "The team to route to"
+                    },
+                    "response_draft": {
+                        "type": "string",
+                        "description": "Brief summary of investigation findings and recommended response actions"
                     },
                 },
                 "required": ["category", "priority", "route_to"],
@@ -218,7 +228,7 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
                         args = json.loads(tc.function.arguments)
                     except (json.JSONDecodeError, TypeError):
                         args = {}
-                    action_str = f"{tool_name}({json.dumps(args)})"
+                    action_str = f"{tool_name}({json.dumps(args)})".replace("\n", " ")
                 else:
                     tool_name = "triage_alert"
                     args = {"category": "false_alarm", "priority": "low", "route_to": "false_positive"}
@@ -260,11 +270,10 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
 
             r_val = result_data.get("reward")
             reward = float(r_val) if r_val is not None else 0.001
-            if tool_name == "triage_alert":
-                rewards.append(reward)
+            rewards.append(reward)
 
             step_count += 1
-            error_str = str(error) if error else "null"
+            error_str = str(error).replace("\n", " ") if error else "null"
             print(f"[STEP] step={step_count} action={action_str} "
                   f"reward={reward:.2f} done={'true' if done else 'false'} "
                   f"error={error_str}")
@@ -293,44 +302,30 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
                 "content": json.dumps(result_data),
             })
 
-            # When we just triaged an alert, inject the next alert if available
+            # When we just triaged an alert, reset context for next alert
             if tool_name == "triage_alert":
                 next_alert = result_data.get("next_alert")
                 if next_alert:
-                    messages.append({
-                        "role": "user",
-                        "content": build_user_message({"current_alert": next_alert}),
-                    })
+                    # Fresh context per alert prevents token overflow
+                    messages = [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": build_user_message({"current_alert": next_alert})},
+                    ]
 
-        if not done and step_count > 0:
-            success = True
+        # success remains False if not all alerts were processed
 
     except Exception:
         traceback.print_exc(file=sys.stderr)
         success = False
 
-    # Compute task score from rewards, clamped strictly inside (0, 1)
-    if rewards:
-        raw_score = sum(rewards) / len(rewards)
-    else:
-        raw_score = 0.5
-
-    if raw_score != raw_score or raw_score <= 0.0:  # NaN or <= 0
-        task_score = 0.001
-    elif raw_score >= 1.0:
-        task_score = 0.999
-    else:
-        task_score = raw_score
-
-    # 4-decimal precision so 0.001 doesn't round to 0.00
-    rewards_str = ",".join(f"{r:.4f}" for r in rewards) if rewards else "0.0010"
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
     print(f"[END] success={'true' if success else 'false'} steps={step_count} "
-          f"score={task_score:.4f} rewards={rewards_str}")
+          f"rewards={rewards_str}")
     return success
 
 
 async def main():
-    llm_client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+    llm_client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
 
     from soc_triage_env import SOCTriageEnv
     base_url = os.getenv("ENV_BASE_URL", "http://localhost:8000")

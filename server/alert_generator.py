@@ -177,15 +177,16 @@ class AlertGenerator:
             return self.rng.choice(HOSTS)
 
     def _get_department_mapping(self, category: str, priority: str, is_critical: bool) -> str:
-        if category == "false_alarm":
-            return "false_positive"
-        if priority == "critical" or is_critical:
-            return "incident_response"
-        if category == "ddos":
-            return "networking"
-        if category == "compliance":
-            return "legal"
-        return "tier1"
+        """Route based on category alone — matches the system prompt exactly."""
+        routing = {
+            "false_alarm": "false_positive",
+            "malware": "incident_response",
+            "phishing": "tier1",
+            "ddos": "networking",
+            "exfiltration": "incident_response",
+            "compliance": "legal",
+        }
+        return routing.get(category, "tier1")
 
     def _build_alert(self, cat: str, template: dict, is_critical: bool) -> SecurityAlert:
         host = self._pick_host(is_critical=is_critical)
