@@ -35,7 +35,7 @@ WORKFLOW for every alert:
 Interpreting investigation results:
   - Tool responses include a `confidence` score and `notes`. High confidence + concrete indicators (threat categories, anomaly counts, known families) suggest a real incident.
   - Clean verdicts, internal/VPN reputation, signed binaries, scheduled change tickets usually indicate false alarms even when the surface signature looks scary.
-  - Missing data (unknown reputation, hash not found) is ambiguous — err toward caution for critical infrastructure.
+  - Missing data (unknown reputation, hash not found) is ambiguous -- err toward caution for critical infrastructure.
 
 Valid values:
   Categories: malware, phishing, ddos, exfiltration, false_alarm, compliance

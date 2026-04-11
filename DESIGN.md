@@ -1,10 +1,10 @@
-# Design Document — SOC Alert Triage Environment
+# Design Document -- SOC Alert Triage Environment
 
-*Meta PyTorch OpenEnv Hackathon × Scaler School of Technology, Round 1 — April 2026*
+*Meta PyTorch OpenEnv Hackathon x Scaler School of Technology, Round 1 -- April 2026*
 
 ## Problem framing
 
-Every large enterprise runs a Security Operations Center. Every SOC drowns in alerts. Typical tier-1 analysts handle 30–50 alerts per shift; modern SIEMs generate tens of thousands per day. The gap between signal volume and human capacity is the core operational problem of defensive cybersecurity.
+Every large enterprise runs a Security Operations Center. Every SOC drowns in alerts. Typical tier-1 analysts handle 30-50 alerts per shift; modern SIEMs generate tens of thousands per day. The gap between signal volume and human capacity is the core operational problem of defensive cybersecurity.
 
 Inside that gap sits a recognizable, repeatable workflow:
 
@@ -14,7 +14,7 @@ Inside that gap sits a recognizable, repeatable workflow:
 4. Check any file hashes against malware databases
 5. Classify, prioritize, route
 
-That workflow is a tool-use RL problem in disguise. An agent that learns to execute it reliably becomes a force multiplier for the humans who handle the ambiguous 5% of cases — not a replacement, but an extender of capacity. That is the real-world utility this environment exists to unlock.
+That workflow is a tool-use RL problem in disguise. An agent that learns to execute it reliably becomes a force multiplier for the humans who handle the ambiguous 5% of cases -- not a replacement, but an extender of capacity. That is the real-world utility this environment exists to unlock.
 
 ## Design goals
 
@@ -29,14 +29,14 @@ We set four goals at the start and optimized every design choice against them.
 
 ### Forced investigation via reward shaping
 
-The single most important decision. Every alert has a set of "needed" investigation tools (IP, host, hash — depending on the alert's evidence). The agent's final score is multiplied by:
+The single most important decision. Every alert has a set of "needed" investigation tools (IP, host, hash -- depending on the alert's evidence). The agent's final score is multiplied by:
 
 
 investigation_multiplier = 0.5 + 0.5 * (tools_used / tools_required)
 
 
 
-An agent that investigates everything gets `×1.0`. An agent that skips everything gets `×0.5`, hard-capping their ceiling at half the score of a thorough analyst. Investigation is free (calling a tool costs nothing) but mandatory.
+An agent that investigates everything gets `x1.0`. An agent that skips everything gets `x0.5`, hard-capping their ceiling at half the score of a thorough analyst. Investigation is free (calling a tool costs nothing) but mandatory.
 
 This design choice is why we expect the environment to be **ungameable by pattern-matching baselines**. A model that reads only the payload string and guesses from keywords cannot beat an agent that actually checks the tools, because the multiplier dominates every task grade.
 
@@ -46,7 +46,7 @@ We considered using an LLM to generate alert text for variety. We rejected it. R
 
 Templates give us a fixed alert pool per seed. Every run with `seed=42` produces the exact same alerts in the exact same order. That is the property a benchmark needs.
 
-The trade-off: templates can be memorized if an adversary trains an agent extensively against this exact environment. We mitigate that two ways. First, we currently ship 26 templates across 6 categories, not the 3-per-category bare minimum. Second, templates are rotated per episode based on the seed — two different seeds produce two different sequences. Full anti-memorization (50+ templates + per-episode text randomization) is future work.
+The trade-off: templates can be memorized if an adversary trains an agent extensively against this exact environment. We mitigate that two ways. First, we currently ship 26 templates across 6 categories, not the 3-per-category bare minimum. Second, templates are rotated per episode based on the seed -- two different seeds produce two different sequences. Full anti-memorization (50+ templates + per-episode text randomization) is future work.
 
 ### Structured tool responses over free text
 
@@ -61,7 +61,7 @@ This does two things for agent behavior. It forces the agent to integrate multip
 
 ### System prompt contains workflow, not answers
 
-The first version of the system prompt listed signature-to-category mappings and gave the agent explicit keyword hints ("'malicious' → real threat"). This was a leak — the agent could skip investigation and pattern-match. We removed it.
+The first version of the system prompt listed signature-to-category mappings and gave the agent explicit keyword hints ("'malicious' -> real threat"). This was a leak -- the agent could skip investigation and pattern-match. We removed it.
 
 The current system prompt describes the workflow and explains how to *interpret* investigation results (confidence scores, notes, indicators), but never tells the agent what words to match. The agent has to reason about evidence.
 
@@ -69,11 +69,11 @@ The current system prompt describes the workflow and explains how to *interpret*
 
 | Task | Grader focus | Why it exists |
 |------|-------------|---------------|
-| `single_categorize` | Category × investigation | Validates basic tool use. If an agent fails this, it cannot use tools at all. |
+| `single_categorize` | Category x investigation | Validates basic tool use. If an agent fails this, it cannot use tools at all. |
 | `full_triage` | Category + priority + routing, each weighted | Tests multi-dimensional reasoning across a full triage decision. |
 | `executive_inbox` | Adds response_draft quality and completeness bonus | Tests natural language output plus completeness (agent must process every alert, not stop early). |
 
-This is how real SOCs onboard new analysts — start with categorization, add priority and routing, add incident writeups. Agents that learn this progression learn a transferable skill, not a task-specific trick.
+This is how real SOCs onboard new analysts -- start with categorization, add priority and routing, add incident writeups. Agents that learn this progression learn a transferable skill, not a task-specific trick.
 
 ### Strict `(0, 1)` score contract
 
@@ -100,16 +100,16 @@ Listing these to show honest scope boundaries, not to pre-apologize.
 
 If you are a judge evaluating this submission, the three things most worth looking at:
 
-1. **Run the baseline against the deployed HF Space** to see that it actually works end-to-end: `python inference.py` with `HF_TOKEN` set. Expected task scores for the stock Qwen 2.5 baseline: roughly 0.4 / 0.36 / 0.27 across easy / medium / hard. The moderate numbers are by design — the environment has real headroom for better agents.
+1. **Run the baseline against the deployed HF Space** to see that it actually works end-to-end: `python inference.py` with `HF_TOKEN` set. Expected task scores for the stock Qwen 2.5 baseline: roughly 0.4 / 0.36 / 0.27 across easy / medium / hard. The moderate numbers are by design -- the environment has real headroom for better agents.
 2. **Read `server/graders.py`** to see how investigation penalty, priority partial credit, and weight clamping compose. The math is small and readable.
 3. **Run `python test_compliance.py`** from inside `soc_triage_env/`. This validates scoring contract, routing, task outputs, and output format regex. Five tests, all should pass.
 
 ## Team
 
-Built for the Meta PyTorch × Hugging Face × Scaler OpenEnv Hackathon, Round 1.
+Built for the Meta PyTorch x Hugging Face x Scaler OpenEnv Hackathon, Round 1.
 
-- Adarsh Kumar Dwivedi — adarshdwivedi626@gmail.com (Team Lead)
-- Madhukar Vaibhav — madhukarkty@gmail.com
+- Adarsh Kumar Dwivedi -- adarshdwivedi626@gmail.com (Team Lead)
+- Madhukar Vaibhav -- madhukarkty@gmail.com
 
 ## License
 

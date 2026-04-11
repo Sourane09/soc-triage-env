@@ -326,7 +326,7 @@ class AlertGenerator:
             return self.rng.choice(HOSTS)
 
     def _get_department_mapping(self, category: str, priority: str, is_critical: bool) -> str:
-        """Route based on category alone — matches the system prompt exactly."""
+        """Route based on category alone -- matches the system prompt exactly."""
         routing = {
             "false_alarm": "false_positive",
             "malware": "incident_response",

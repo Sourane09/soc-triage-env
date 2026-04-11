@@ -3,7 +3,7 @@ from ..models import SecurityAlert, SOCTriageAction
 
 
 def _clamp_score(score) -> float:
-    """Clamp score strictly within (0.01, 0.99) — never exactly 0.0 or 1.0, NaN-safe."""
+    """Clamp score strictly within (0.01, 0.99) -- never exactly 0.0 or 1.0, NaN-safe."""
     try:
         s = float(score)
     except (TypeError, ValueError):

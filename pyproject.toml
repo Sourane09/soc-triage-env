@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openenv-soc-triage-env"
 version = "0.1.0"
-description = "SOC Triage Environment for OpenEnv — AI agents learn to categorize, prioritize, and route cybersecurity alerts"
+description = "SOC Triage Environment for OpenEnv -- AI agents learn to categorize, prioritize, and route cybersecurity alerts"
 requires-python = ">=3.10"
 dependencies = [
     "openenv-core[core]>=0.2.2",

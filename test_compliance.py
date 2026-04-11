@@ -108,8 +108,8 @@ print("\n" + "=" * 60)
 if errors:
     print(f"FAILURES ({len(errors)}):")
     for e in errors:
-        print(f"  ❌ {e}")
+        print(f"  [FAIL] {e}")
     sys.exit(1)
 else:
-    print("✅ ALL TESTS PASSED")
+    print("[PASS] ALL TESTS PASSED")
     sys.exit(0)

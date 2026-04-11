@@ -1,6 +1,6 @@
-markdown---
+---
 title: SOC Triage Environment
-emoji: 🛡️
+emoji: 🔒
 colorFrom: blue
 colorTo: indigo
 sdk: docker
@@ -13,29 +13,29 @@ A real-world cybersecurity environment where AI agents act as Level 2 SOC Analys
 
 ## Why this matters
 
-A typical Security Operations Center processes tens of thousands of alerts per day. Level 1 analysts can handle maybe 30–50 in a shift. The majority of alerts are false positives, but the cost of misclassifying a real threat — especially a ransomware precursor or data exfiltration — is catastrophic. Training AI agents on this workflow has direct operational value: a reliable triage agent can extend analyst capacity by an order of magnitude without replacing the humans who handle the ambiguous edge cases.
+A typical Security Operations Center processes tens of thousands of alerts per day. Level 1 analysts can handle maybe 30-50 in a shift. The majority of alerts are false positives, but the cost of misclassifying a real threat -- especially a ransomware precursor or data exfiltration -- is catastrophic. Training AI agents on this workflow has direct operational value: a reliable triage agent can extend analyst capacity by an order of magnitude without replacing the humans who handle the ambiguous edge cases.
 
-The key design choice in this environment is **forced investigation**. Alert payloads are intentionally ambiguous — the same surface signature can be malware or a legitimate admin action depending on hidden evidence. An agent that skips the investigation tools and guesses from the payload alone is explicitly penalized: their final score is multiplied by `0.5 + 0.5 × (investigated / required)`, capping blind guessers at 0.5× the score of a thorough analyst. This mirrors how real SOCs evaluate their L1/L2 workflow.
+The key design choice in this environment is **forced investigation**. Alert payloads are intentionally ambiguous -- the same surface signature can be malware or a legitimate admin action depending on hidden evidence. An agent that skips the investigation tools and guesses from the payload alone is explicitly penalized: their final score is multiplied by `0.5 + 0.5 x (investigated / required)`, capping blind guessers at 0.5x the score of a thorough analyst. This mirrors how real SOCs evaluate their L1/L2 workflow.
 
 ## Architecture
-┌─────────────────────────────────────────────────────────────┐
-│                    SOCTriageEnvironment                     │
-│                   (extends MCPEnvironment)                  │
-├─────────────────────────────────────────────────────────────┤
-│  Alert Queue (5/8/12 alerts per task, seeded generator)     │
-│         ↓                                                   │
-│  ┌──────────────────────────────────────────────────┐       │
-│  │  MCP Tools                                       │       │
-│  │  • query_ip_reputation(ip)                       │       │
-│  │  • search_internal_logs(host)                    │       │
-│  │  • check_file_hash(hash)                         │       │
-│  │  • triage_alert(category, priority, route, ...)  │       │
-│  └──────────────────────────────────────────────────┘       │
-│         ↓                                                   │
-│  Task-specific grader + investigation multiplier            │
-│         ↓                                                   │
-│  Reward ∈ (0, 1) per step, final score ∈ (0, 1)            │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    SOCTriageEnvironment                     |
+|                   (extends MCPEnvironment)                  |
++-------------------------------------------------------------+
+|  Alert Queue (5/8/12 alerts per task, seeded generator)     |
+|         v                                                   |
+|  +--------------------------------------------------+       |
+|  |  MCP Tools                                       |       |
+|  |  * query_ip_reputation(ip)                       |       |
+|  |  * search_internal_logs(host)                    |       |
+|  |  * check_file_hash(hash)                         |       |
+|  |  * triage_alert(category, priority, route, ...)  |       |
+|  +--------------------------------------------------+       |
+|         v                                                   |
+|  Task-specific grader + investigation multiplier            |
+|         v                                                   |
+|  Reward in (0, 1) per step, final score in (0, 1)            |
++-------------------------------------------------------------+
 
 ## Action Space
 
@@ -66,11 +66,11 @@ Ground-truth fields (`true_category`, `true_priority`, `true_department`, `malic
 
 | Task | Difficulty | Alerts | Grading Focus |
 |------|-----------|--------|---------------|
-| `single_categorize` | Easy | 5 | Category accuracy × investigation multiplier |
-| `full_triage` | Medium | 8 | Category (40%) + Priority (30%) + Routing (30%), all × investigation |
-| `executive_inbox` | Hard | 12 | Category (30%) + Priority (25%) + Routing (25%) + Response quality (20%), × investigation × completeness |
+| `single_categorize` | Easy | 5 | Category accuracy x investigation multiplier |
+| `full_triage` | Medium | 8 | Category (40%) + Priority (30%) + Routing (30%), all x investigation |
+| `executive_inbox` | Hard | 12 | Category (30%) + Priority (25%) + Routing (25%) + Response quality (20%), x investigation x completeness |
 
-Alert counts are small intentionally — each alert is multi-step (query, search, check, triage) so 12 alerts become 48+ tool calls. A full `executive_inbox` episode is a realistic "1 hour of an L2 analyst's shift" in compute terms.
+Alert counts are small intentionally -- each alert is multi-step (query, search, check, triage) so 12 alerts become 48+ tool calls. A full `executive_inbox` episode is a realistic "1 hour of an L2 analyst's shift" in compute terms.
 
 ## Reward Design
 
@@ -81,14 +81,14 @@ Every `triage_alert` call immediately returns a reward computed by the same task
 Computed by averaging per-alert grades across the episode, with an `ExecutiveInbox`-specific completeness bonus rewarding agents who process all alerts instead of stopping early.
 
 ### Investigation multiplier
-multiplier = 0.5 + 0.5 × (tools_used / tools_required)
-An agent that investigates everything gets `×1.0`. An agent that skips all investigation gets `×0.5`. This multiplier is applied to every alert's base score, making it impossible to achieve a high final score by guessing.
+multiplier = 0.5 + 0.5 x (tools_used / tools_required)
+An agent that investigates everything gets `x1.0`. An agent that skips all investigation gets `x0.5`. This multiplier is applied to every alert's base score, making it impossible to achieve a high final score by guessing.
 
 ### Partial credit
 Priority scoring uses a distance-based scheme: exact match = 1.0, off-by-one (e.g. predicted `high` when true is `medium`) = 0.4, off-by-two = 0.1. This prevents the all-or-nothing cliff that would otherwise punish reasonable near-misses.
 
 ### Score clamping
-All grader outputs, per-step rewards, and the final episode score are strictly clamped inside `(0, 1)` — never exactly 0.0 or 1.0. This is enforced at every return path including early-exit guards and exception handlers.
+All grader outputs, per-step rewards, and the final episode score are strictly clamped inside `(0, 1)` -- never exactly 0.0 or 1.0. This is enforced at every return path including early-exit guards and exception handlers.
 
 ## Quick Start
 
@@ -117,7 +117,7 @@ Baseline agent: `Qwen/Qwen2.5-72B-Instruct` via Hugging Face Router, with `tool_
 | `full_triage` | 8 | ~0.36 | Multi-dimensional scoring pulls score down |
 | `executive_inbox` | 12 | ~0.27 | Hardest task, biased toward false alarms |
 
-Baseline scores are moderate by design — the environment is hard to game. An agent that uses all investigation tools and carefully maps evidence to category should land in the 0.6–0.8 range. These scores leave clear headroom for RL fine-tuning to demonstrate improvement.
+Baseline scores are moderate by design -- the environment is hard to game. An agent that uses all investigation tools and carefully maps evidence to category should land in the 0.6-0.8 range. These scores leave clear headroom for RL fine-tuning to demonstrate improvement.
 
 ## Design Decisions
 
@@ -129,33 +129,33 @@ Baseline scores are moderate by design — the environment is hard to game. An a
 
 ## Known Limitations
 
-1. **Template pool size** — 15 base templates across 6 categories. Could be memorized by a model trained extensively on this environment. Future work: expand to 50+ templates and add per-episode randomization of descriptor text.
-2. **Binary investigation responses** — tool responses are "malicious" or "benign" with deterministic text. Real threat intel returns confidence scores, ASN data, temporal context. Future work: return structured JSON with confidence and metadata.
-3. **Stateless per-alert** — alerts in an episode are independent. Real SOC workflows involve correlation across alerts (same IP appearing twice). Future work: add a correlation dimension to the grader.
+1. **Template pool size** -- 15 base templates across 6 categories. Could be memorized by a model trained extensively on this environment. Future work: expand to 50+ templates and add per-episode randomization of descriptor text.
+2. **Binary investigation responses** -- tool responses are "malicious" or "benign" with deterministic text. Real threat intel returns confidence scores, ASN data, temporal context. Future work: return structured JSON with confidence and metadata.
+3. **Stateless per-alert** -- alerts in an episode are independent. Real SOC workflows involve correlation across alerts (same IP appearing twice). Future work: add a correlation dimension to the grader.
 
 ## Repository Layout
 soc_triage_env/
-├── README.md              (this file)
-├── openenv.yaml           (OpenEnv metadata)
-├── pyproject.toml         (package config)
-├── inference.py           (baseline agent)
-├── init.py            (exports SOCTriageEnv, SOCTriageAction, SOCTriageObservation)
-├── client.py              (MCP client wrapper)
-├── models.py              (Pydantic types: SecurityAlert, SOCTriageAction, ...)
-├── server/
-│   ├── app.py             (FastAPI app factory)
-│   ├── Dockerfile         (container definition)
-│   ├── soc_environment.py (SOCTriageEnvironment class)
-│   ├── alert_generator.py (synthetic alert templates)
-│   └── graders.py         (task-specific graders)
-└── test_compliance.py     (spec compliance tests)
++-- README.md              (this file)
++-- openenv.yaml           (OpenEnv metadata)
++-- pyproject.toml         (package config)
++-- inference.py           (baseline agent)
++-- init.py            (exports SOCTriageEnv, SOCTriageAction, SOCTriageObservation)
++-- client.py              (MCP client wrapper)
++-- models.py              (Pydantic types: SecurityAlert, SOCTriageAction, ...)
++-- server/
+|   +-- app.py             (FastAPI app factory)
+|   +-- Dockerfile         (container definition)
+|   +-- soc_environment.py (SOCTriageEnvironment class)
+|   +-- alert_generator.py (synthetic alert templates)
+|   +-- graders.py         (task-specific graders)
++-- test_compliance.py     (spec compliance tests)
 
 ## Team
 
-Built for the Meta PyTorch OpenEnv Hackathon × Scaler School of Technology 2026.
+Built for the Meta PyTorch OpenEnv Hackathon x Scaler School of Technology 2026.
 
-- **Adarsh Kumar Dwivedi** (Team Lead) — adarshdwivedi626@gmail.com
-- **Madhukar Vaibhav** — madhukarkty@gmail.com
+- **Adarsh Kumar Dwivedi** (Team Lead) -- adarshdwivedi626@gmail.com
+- **Madhukar Vaibhav** -- madhukarkty@gmail.com
 
 ## License
 
