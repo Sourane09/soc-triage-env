@@ -3,18 +3,18 @@ from ..models import SecurityAlert, SOCTriageAction
 
 
 def _clamp_score(score) -> float:
-    """Clamp score to strictly within (0.05, 0.95) — safe margin from 0 and 1."""
+    """Clamp score strictly within (0.1, 0.9) — widened margin for validator tolerance."""
     try:
         s = float(score)
     except (TypeError, ValueError):
         return 0.5
     if s != s:  # NaN check
         return 0.5
-    if s <= 0.05:
-        return 0.05
-    if s >= 0.95:
-        return 0.95
-    return s
+    if s <= 0.1:
+        return 0.1
+    if s >= 0.9:
+        return 0.9
+    return round(s, 4)
 
 
 def _category_score(predicted: str, true: str) -> float:
@@ -141,6 +141,7 @@ class ExecutiveInboxGrader:
         actions: List[SOCTriageAction],
         alerts: List[SecurityAlert],
         investigative_states: List[dict] = None,
+        per_step: bool = False,
     ) -> float:
         if not alerts:
             return _clamp_score(0.0)
@@ -167,8 +168,11 @@ class ExecutiveInboxGrader:
             total += base_score * inv_multiplier
 
         avg_quality = total / n_processed
-        completeness = n_processed / n_alerts
 
+        if per_step:
+            return _clamp_score(avg_quality)
+
+        completeness = n_processed / n_alerts
         final = (0.90 * avg_quality) + (0.10 * completeness)
         return _clamp_score(final)
 

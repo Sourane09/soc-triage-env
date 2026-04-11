@@ -21,19 +21,19 @@ from .graders import (
 from ..models import SecurityAlert, SOCTriageAction, SOCTriageState
 
 
-def _safe_clamp(value, default: float = 0.05) -> float:
-    """Defensive clamp with safety margin: values in [0.05, 0.95]."""
+def _safe_clamp(value, default: float = 0.1) -> float:
+    """Defensive clamp: values strictly in [0.1, 0.9]."""
     try:
         s = float(value) if value is not None else default
     except (TypeError, ValueError):
         return default
     if s != s:  # NaN
         return default
-    if s <= 0.05:
-        return 0.05
-    if s >= 0.95:
-        return 0.95
-    return s
+    if s <= 0.1:
+        return 0.1
+    if s >= 0.9:
+        return 0.9
+    return round(s, 4)
 
 
 class SOCTriageEnvironment(MCPEnvironment):
@@ -158,7 +158,7 @@ class SOCTriageEnvironment(MCPEnvironment):
 
         return Observation(
             done=False,
-            reward=0.05,
+            reward=0.1,
             metadata={
                 "status": "ready",
                 "task_name": self._task_name,
@@ -183,7 +183,7 @@ class SOCTriageEnvironment(MCPEnvironment):
     # --- Investigation Tools (DO NOT END TURN) ---
     def _tool_query_ip(self, ip_address: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "reward": 0.05, "done": True}
+            return {"error": "Episode is done.", "reward": 0.1, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_ip = True
 
@@ -191,24 +191,24 @@ class SOCTriageEnvironment(MCPEnvironment):
             if alert.malicious:
                 return {
                     "result": f"IP {ip_address} is listed on multiple Threat Intelligence Feeds as a known malicious node.",
-                    "reward": 0.05,
+                    "reward": 0.1,
                     "done": False,
                 }
             else:
                 return {
                     "result": f"IP {ip_address} originates from an authorized Corporate VPN endpoint.",
-                    "reward": 0.05,
+                    "reward": 0.1,
                     "done": False,
                 }
         return {
             "result": f"IP {ip_address} not found in current alert context or is benign.",
-            "reward": 0.05,
+            "reward": 0.1,
             "done": False,
         }
 
     def _tool_search_logs(self, host_name: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "reward": 0.05, "done": True}
+            return {"error": "Episode is done.", "reward": 0.1, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_host = True
 
@@ -216,24 +216,24 @@ class SOCTriageEnvironment(MCPEnvironment):
             if alert.malicious:
                 return {
                     "result": f"Host {host_name} logs indicate rapid file encryption and outbound connections. Compromise is highly likely.",
-                    "reward": 0.05,
+                    "reward": 0.1,
                     "done": False,
                 }
             else:
                 return {
                     "result": f"Host {host_name} logs indicate normal approved behavior matching scheduled maintenance windows.",
-                    "reward": 0.05,
+                    "reward": 0.1,
                     "done": False,
                 }
         return {
             "result": f"Host {host_name} has no abnormal logs.",
-            "reward": 0.05,
+            "reward": 0.1,
             "done": False,
         }
 
     def _tool_check_hash(self, file_hash: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "reward": 0.05, "done": True}
+            return {"error": "Episode is done.", "reward": 0.1, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_hash = True
 
@@ -241,18 +241,18 @@ class SOCTriageEnvironment(MCPEnvironment):
             if alert.malicious:
                 return {
                     "result": f"Hash {file_hash} matches a known zero-day payload family (Confidence: 99%).",
-                    "reward": 0.05,
+                    "reward": 0.1,
                     "done": False,
                 }
             else:
                 return {
                     "result": f"Hash {file_hash} is digitally signed by Microsoft Corporation. Valid updater.",
-                    "reward": 0.05,
+                    "reward": 0.1,
                     "done": False,
                 }
         return {
             "result": f"Hash {file_hash} not found in threat database.",
-            "reward": 0.05,
+            "reward": 0.1,
             "done": False,
         }
 
@@ -285,7 +285,7 @@ class SOCTriageEnvironment(MCPEnvironment):
             return {
                 "error": "Episode is done.",
                 "done": True,
-                "reward": 0.05,
+                "reward": 0.1,
                 "final_score": _safe_clamp(self._cumulative_reward / max(self._processed_count, 1)),
             }
 
@@ -302,7 +302,7 @@ class SOCTriageEnvironment(MCPEnvironment):
             return {
                 "error": self._last_error,
                 "done": False,
-                "reward": 0.05,
+                "reward": 0.1,
                 "hint": "Fix the errors and try again. Turn not ended.",
             }
 
@@ -325,9 +325,12 @@ class SOCTriageEnvironment(MCPEnvironment):
         # Calculate intermediate step reward identical to final grading
         grader = TASK_GRADERS[self._task_name]
         try:
-            reward = grader.grade([action], [current_alert], [inv_state])
+            try:
+                reward = grader.grade([action], [current_alert], [inv_state], per_step=True)
+            except TypeError:
+                reward = grader.grade([action], [current_alert], [inv_state])
         except Exception:
-            reward = 0.05
+            reward = 0.1
 
         self._actions_taken.append(action)
         self._rewards.append(reward)
@@ -374,7 +377,7 @@ class SOCTriageEnvironment(MCPEnvironment):
     ) -> Observation:
         return Observation(
             done=self._done,
-            reward=0.05,
+            reward=0.1,
             metadata={"error": "Use MCP tools."},
         )
 

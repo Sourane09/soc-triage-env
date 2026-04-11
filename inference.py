@@ -250,7 +250,7 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
             try:
                 result = await env_client.call_tool(tool_name, **args)
             except Exception as tool_err:
-                result = {"error": str(tool_err), "done": False, "reward": 0.001}
+                result = {"error": str(tool_err), "done": False, "reward": 0.1}
 
             # Normalize result into a dict
             if isinstance(result, dict):
@@ -269,7 +269,7 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
             error = result_data.get("error")
 
             r_val = result_data.get("reward")
-            reward = float(r_val) if r_val is not None else 0.001
+            reward = float(r_val) if r_val is not None else 0.1
             rewards.append(reward)
 
             step_count += 1
@@ -318,7 +318,7 @@ async def run_task(task_name: str, llm_client: OpenAI, env_client) -> bool:
         traceback.print_exc(file=sys.stderr)
         success = False
 
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.10"
     print(f"[END] success={'true' if success else 'false'} steps={step_count} "
           f"rewards={rewards_str}")
     return success
