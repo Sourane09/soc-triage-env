@@ -21,18 +21,18 @@ from .graders import (
 from ..models import SecurityAlert, SOCTriageAction, SOCTriageState
 
 
-def _safe_clamp(value, default: float = 0.001) -> float:
-    """Defensive clamp: never returns 0.0, never returns 1.0, never returns NaN/None."""
+def _safe_clamp(value, default: float = 0.05) -> float:
+    """Defensive clamp with safety margin: values in [0.05, 0.95]."""
     try:
         s = float(value) if value is not None else default
     except (TypeError, ValueError):
         return default
     if s != s:  # NaN
         return default
-    if s <= 0.0:
-        return 0.001
-    if s >= 1.0:
-        return 0.999
+    if s <= 0.05:
+        return 0.05
+    if s >= 0.95:
+        return 0.95
     return s
 
 
@@ -158,7 +158,7 @@ class SOCTriageEnvironment(MCPEnvironment):
 
         return Observation(
             done=False,
-            reward=0.001,
+            reward=0.05,
             metadata={
                 "status": "ready",
                 "task_name": self._task_name,
@@ -183,7 +183,7 @@ class SOCTriageEnvironment(MCPEnvironment):
     # --- Investigation Tools (DO NOT END TURN) ---
     def _tool_query_ip(self, ip_address: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "reward": 0.001, "done": True}
+            return {"error": "Episode is done.", "reward": 0.05, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_ip = True
 
@@ -191,24 +191,24 @@ class SOCTriageEnvironment(MCPEnvironment):
             if alert.malicious:
                 return {
                     "result": f"IP {ip_address} is listed on multiple Threat Intelligence Feeds as a known malicious node.",
-                    "reward": 0.001,
+                    "reward": 0.05,
                     "done": False,
                 }
             else:
                 return {
                     "result": f"IP {ip_address} originates from an authorized Corporate VPN endpoint.",
-                    "reward": 0.001,
+                    "reward": 0.05,
                     "done": False,
                 }
         return {
             "result": f"IP {ip_address} not found in current alert context or is benign.",
-            "reward": 0.001,
+            "reward": 0.05,
             "done": False,
         }
 
     def _tool_search_logs(self, host_name: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "reward": 0.001, "done": True}
+            return {"error": "Episode is done.", "reward": 0.05, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_host = True
 
@@ -216,24 +216,24 @@ class SOCTriageEnvironment(MCPEnvironment):
             if alert.malicious:
                 return {
                     "result": f"Host {host_name} logs indicate rapid file encryption and outbound connections. Compromise is highly likely.",
-                    "reward": 0.001,
+                    "reward": 0.05,
                     "done": False,
                 }
             else:
                 return {
                     "result": f"Host {host_name} logs indicate normal approved behavior matching scheduled maintenance windows.",
-                    "reward": 0.001,
+                    "reward": 0.05,
                     "done": False,
                 }
         return {
             "result": f"Host {host_name} has no abnormal logs.",
-            "reward": 0.001,
+            "reward": 0.05,
             "done": False,
         }
 
     def _tool_check_hash(self, file_hash: str) -> dict:
         if self._done or self._current_index >= len(self._alerts):
-            return {"error": "Episode is done.", "reward": 0.001, "done": True}
+            return {"error": "Episode is done.", "reward": 0.05, "done": True}
         alert = self._alerts[self._current_index]
         self._current_investigated_hash = True
 
@@ -241,18 +241,18 @@ class SOCTriageEnvironment(MCPEnvironment):
             if alert.malicious:
                 return {
                     "result": f"Hash {file_hash} matches a known zero-day payload family (Confidence: 99%).",
-                    "reward": 0.001,
+                    "reward": 0.05,
                     "done": False,
                 }
             else:
                 return {
                     "result": f"Hash {file_hash} is digitally signed by Microsoft Corporation. Valid updater.",
-                    "reward": 0.001,
+                    "reward": 0.05,
                     "done": False,
                 }
         return {
             "result": f"Hash {file_hash} not found in threat database.",
-            "reward": 0.001,
+            "reward": 0.05,
             "done": False,
         }
 
@@ -285,7 +285,7 @@ class SOCTriageEnvironment(MCPEnvironment):
             return {
                 "error": "Episode is done.",
                 "done": True,
-                "reward": 0.001,
+                "reward": 0.05,
                 "final_score": _safe_clamp(self._cumulative_reward / max(self._processed_count, 1)),
             }
 
@@ -302,7 +302,7 @@ class SOCTriageEnvironment(MCPEnvironment):
             return {
                 "error": self._last_error,
                 "done": False,
-                "reward": 0.001,
+                "reward": 0.05,
                 "hint": "Fix the errors and try again. Turn not ended.",
             }
 
@@ -327,7 +327,7 @@ class SOCTriageEnvironment(MCPEnvironment):
         try:
             reward = grader.grade([action], [current_alert], [inv_state])
         except Exception:
-            reward = 0.001
+            reward = 0.05
 
         self._actions_taken.append(action)
         self._rewards.append(reward)
@@ -374,7 +374,7 @@ class SOCTriageEnvironment(MCPEnvironment):
     ) -> Observation:
         return Observation(
             done=self._done,
-            reward=0.001,
+            reward=0.05,
             metadata={"error": "Use MCP tools."},
         )
 
