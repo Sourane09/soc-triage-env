@@ -1,6 +1,20 @@
 name: soc_triage_env
 version: 0.1.0
-description: Cybersecurity SOC Alert Triage Environment
+description: >
+  A cybersecurity Security Operations Center (SOC) alert triage environment.
+  AI agents act as Level 2 SOC Analysts, investigating ambiguous alerts with
+  threat intelligence tools, then classifying, prioritizing, and routing to
+  the correct response team. Features three difficulty tiers, forced-
+  investigation reward shaping, and strict (0, 1) score clamping.
+authors:
+  - Adarsh Kumar Dwivedi <adarshdwivedi626@gmail.com>
+  - Madhukar Vaibhav <madhukarkty@gmail.com>
+tags:
+  - cybersecurity
+  - soc
+  - alert-triage
+  - tool-use
+  - multi-step
 main: server/app.py
 entry_point: server
 tasks:

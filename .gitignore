@@ -7,3 +7,9 @@ venv/
 .env
 dist/
 build/
+push_output*.txt
+test_results.txt
+*.log
+outputs/
+*.egg
+.pytest_cache/

@@ -3,17 +3,17 @@ from ..models import SecurityAlert, SOCTriageAction
 
 
 def _clamp_score(score) -> float:
-    """Clamp score strictly within (0.1, 0.9) — widened margin for validator tolerance."""
+    """Clamp score strictly within (0.01, 0.99) — never exactly 0.0 or 1.0, NaN-safe."""
     try:
         s = float(score)
     except (TypeError, ValueError):
         return 0.5
     if s != s:  # NaN check
         return 0.5
-    if s <= 0.1:
-        return 0.1
-    if s >= 0.9:
-        return 0.9
+    if s <= 0.01:
+        return 0.01
+    if s >= 0.99:
+        return 0.99
     return round(s, 4)
 
 
@@ -162,7 +162,7 @@ class ExecutiveInboxGrader:
             route = _routing_score(actions[i].route_to, alerts[i].true_department)
             resp = _response_quality_score(actions[i].response_draft, alerts[i])
 
-            base_score = (0.30 * cat) + (0.25 * pri) + (0.25 * route) + (0.10 * resp)
+            base_score = (0.30 * cat) + (0.25 * pri) + (0.25 * route) + (0.20 * resp)
             inv_multiplier = _investigation_score(investigative_states[i], alerts[i])
 
             total += base_score * inv_multiplier

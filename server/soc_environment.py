@@ -21,18 +21,18 @@ from .graders import (
 from ..models import SecurityAlert, SOCTriageAction, SOCTriageState
 
 
-def _safe_clamp(value, default: float = 0.1) -> float:
-    """Defensive clamp: values strictly in [0.1, 0.9]."""
+def _safe_clamp(value, default: float = 0.01) -> float:
+    """Defensive clamp: values strictly in [0.01, 0.99]."""
     try:
         s = float(value) if value is not None else default
     except (TypeError, ValueError):
         return default
     if s != s:  # NaN
         return default
-    if s <= 0.1:
-        return 0.1
-    if s >= 0.9:
-        return 0.9
+    if s <= 0.01:
+        return 0.01
+    if s >= 0.99:
+        return 0.99
     return round(s, 4)
 
 
@@ -189,19 +189,41 @@ class SOCTriageEnvironment(MCPEnvironment):
 
         if ip_address == alert.source_ip:
             if alert.malicious:
-                return {
-                    "result": f"IP {ip_address} is listed on multiple Threat Intelligence Feeds as a known malicious node.",
-                    "reward": 0.1,
-                    "done": False,
+                intel = {
+                    "ip_address": ip_address,
+                    "reputation": "high_risk",
+                    "confidence": 0.94,
+                    "threat_categories": ["c2_infrastructure", "known_scanner"],
+                    "first_seen": "2026-02-18",
+                    "last_seen": "2026-04-09",
+                    "asn": "AS14618",
+                    "country": "RU",
+                    "feed_hits": 7,
+                    "notes": "Listed on multiple threat intel feeds. Active infrastructure.",
                 }
             else:
-                return {
-                    "result": f"IP {ip_address} originates from an authorized Corporate VPN endpoint.",
-                    "reward": 0.1,
-                    "done": False,
+                intel = {
+                    "ip_address": ip_address,
+                    "reputation": "internal",
+                    "confidence": 0.98,
+                    "threat_categories": [],
+                    "first_seen": "2024-01-01",
+                    "last_seen": "2026-04-11",
+                    "asn": "AS00000",
+                    "country": "US",
+                    "feed_hits": 0,
+                    "notes": "Resolves to authorized corporate VPN egress pool. No feed hits.",
                 }
+            return {"result": intel, "reward": 0.1, "done": False}
+
         return {
-            "result": f"IP {ip_address} not found in current alert context or is benign.",
+            "result": {
+                "ip_address": ip_address,
+                "reputation": "unknown",
+                "confidence": 0.30,
+                "threat_categories": [],
+                "notes": "No records found. IP not relevant to current alert context.",
+            },
             "reward": 0.1,
             "done": False,
         }
@@ -239,23 +261,39 @@ class SOCTriageEnvironment(MCPEnvironment):
 
         if file_hash == alert.file_hash:
             if alert.malicious:
-                return {
-                    "result": f"Hash {file_hash} matches a known zero-day payload family (Confidence: 99%).",
-                    "reward": 0.1,
-                    "done": False,
+                verdict = {
+                    "hash": file_hash,
+                    "verdict": "malicious",
+                    "confidence": 0.99,
+                    "family": "AgentTesla-variant",
+                    "detection_ratio": "61/72",
+                    "first_submitted": "2026-03-22",
+                    "signer": None,
+                    "notes": "High-confidence detection across 61 AV engines. Info-stealer family.",
                 }
             else:
-                return {
-                    "result": f"Hash {file_hash} is digitally signed by Microsoft Corporation. Valid updater.",
-                    "reward": 0.1,
-                    "done": False,
+                verdict = {
+                    "hash": file_hash,
+                    "verdict": "clean",
+                    "confidence": 0.99,
+                    "family": None,
+                    "detection_ratio": "0/72",
+                    "first_submitted": "2024-11-04",
+                    "signer": "Microsoft Corporation",
+                    "notes": "Valid digital signature. Known-good vendor binary.",
                 }
+            return {"result": verdict, "reward": 0.1, "done": False}
+
         return {
-            "result": f"Hash {file_hash} not found in threat database.",
+            "result": {
+                "hash": file_hash,
+                "verdict": "unknown",
+                "confidence": 0.10,
+                "notes": "Hash not found in local or federated databases.",
+            },
             "reward": 0.1,
             "done": False,
         }
-
     # --- Core Actions ---
     def _get_current_alert(self) -> dict:
         if self._done:

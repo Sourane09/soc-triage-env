@@ -5,7 +5,12 @@ from typing import List, Optional
 
 from ..models import SecurityAlert
 
-# Payloads are intentionally ambiguous to force agents to use investigation tools
+# ---------------------------------------------------------------------------
+# Alert templates are intentionally ambiguous on the surface. The `malicious`
+# flag is ground truth, hidden from the agent. Agents that investigate via
+# the MCP tools will see deterministic results driven by this flag.
+# ---------------------------------------------------------------------------
+
 MALWARE_TEMPLATES = [
     {
         "signature": "Suspicious Process Execution",
@@ -17,8 +22,8 @@ MALWARE_TEMPLATES = [
         "malicious": True,
     },
     {
-        "signature": "Ransomware.Behavior.Detected",
-        "payload": "vssadmin.exe called to delete shadows. Subsequent high-volume file writes.",
+        "signature": "Ransomware Behavior Detected",
+        "payload": "vssadmin.exe called to delete shadow copies. Subsequent high-volume file writes observed.",
         "priority": "critical",
         "needs_hash": True,
         "needs_host": True,
@@ -32,6 +37,33 @@ MALWARE_TEMPLATES = [
         "needs_hash": True,
         "needs_host": False,
         "needs_ip": True,
+        "malicious": True,
+    },
+    {
+        "signature": "DLL Sideloading Attempt",
+        "payload": "Legitimate signed binary loaded unsigned DLL from user-writable path. Persistence indicator.",
+        "priority": "high",
+        "needs_hash": True,
+        "needs_host": True,
+        "needs_ip": False,
+        "malicious": True,
+    },
+    {
+        "signature": "Credential Dumping Tool",
+        "payload": "Process accessed LSASS memory with read permissions. Tool signature consistent with Mimikatz family.",
+        "priority": "critical",
+        "needs_hash": True,
+        "needs_host": True,
+        "needs_ip": False,
+        "malicious": True,
+    },
+    {
+        "signature": "Macro-Enabled Document Execution",
+        "payload": "Office document with embedded macro spawned cmd.exe child process. User opened attachment from email.",
+        "priority": "high",
+        "needs_hash": True,
+        "needs_host": True,
+        "needs_ip": False,
         "malicious": True,
     },
 ]
@@ -55,6 +87,24 @@ PHISHING_TEMPLATES = [
         "needs_ip": True,
         "malicious": True,
     },
+    {
+        "signature": "OAuth Consent Grant",
+        "payload": "User granted third-party app read permissions to mailbox. App publisher unverified.",
+        "priority": "high",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
+        "malicious": True,
+    },
+    {
+        "signature": "Password Spray Pattern",
+        "payload": "Failed logins across 47 accounts from single IP within 8 minute window. Targets include exec mailboxes.",
+        "priority": "high",
+        "needs_hash": False,
+        "needs_host": False,
+        "needs_ip": True,
+        "malicious": True,
+    },
 ]
 
 DDOS_TEMPLATES = [
@@ -62,6 +112,24 @@ DDOS_TEMPLATES = [
         "signature": "Traffic Volatility Alert",
         "payload": "Ingress connection rate exceeded baselines by 500x targeting edge nodes.",
         "priority": "critical",
+        "needs_hash": False,
+        "needs_host": False,
+        "needs_ip": True,
+        "malicious": True,
+    },
+    {
+        "signature": "SYN Flood Detected",
+        "payload": "Half-open TCP connection count 12x normal. Concentrated on public API endpoint.",
+        "priority": "high",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
+        "malicious": True,
+    },
+    {
+        "signature": "DNS Amplification Pattern",
+        "payload": "Outbound DNS query volume matches reflection attack signature. Spoofed source indicators.",
+        "priority": "high",
         "needs_hash": False,
         "needs_host": False,
         "needs_ip": True,
@@ -79,6 +147,24 @@ EXFILTRATION_TEMPLATES = [
         "needs_ip": True,
         "malicious": True,
     },
+    {
+        "signature": "DNS Tunneling Indicator",
+        "payload": "Unusually long DNS TXT queries from endpoint. Entropy consistent with encoded payload.",
+        "priority": "high",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
+        "malicious": True,
+    },
+    {
+        "signature": "Cloud Storage Upload Spike",
+        "payload": "Sudden 40GB upload to personal cloud storage domain. User has no history of such activity.",
+        "priority": "critical",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
+        "malicious": True,
+    },
 ]
 
 FALSE_ALARM_TEMPLATES = [
@@ -89,7 +175,7 @@ FALSE_ALARM_TEMPLATES = [
         "needs_hash": False,
         "needs_host": True,
         "needs_ip": True,
-        "malicious": False,
+        "malicious": False,  # authorized pentest team scanner
     },
     {
         "signature": "Admin Access - Unrecognized Source",
@@ -98,16 +184,43 @@ FALSE_ALARM_TEMPLATES = [
         "needs_hash": False,
         "needs_host": False,
         "needs_ip": True,
-        "malicious": False, # IP resolves to corporate VPN
+        "malicious": False,  # corporate VPN endpoint
     },
     {
         "signature": "Suspicious Process Execution",
-        "payload": "Executable script running with elevated permissions from C:\\Windows\\Temp.",
+        "payload": "Executable script running with elevated permissions from a temporary directory.",
         "priority": "low",
         "needs_hash": True,
         "needs_host": False,
         "needs_ip": False,
-        "malicious": False, # Hash turns out to be legitimate vendor updater
+        "malicious": False,  # signed vendor updater
+    },
+    {
+        "signature": "Beaconing-Like Traffic",
+        "payload": "Host making periodic HTTPS requests to external IP every 60 seconds with small payload.",
+        "priority": "low",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
+        "malicious": False,  # legitimate health-check probe
+    },
+    {
+        "signature": "Unusual Port Scan from Internal Host",
+        "payload": "Single host connected to multiple internal ports across subnet during business hours.",
+        "priority": "low",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": False,
+        "malicious": False,  # scheduled asset inventory job
+    },
+    {
+        "signature": "Mass File Access",
+        "payload": "User account accessed 8,000 files on shared drive within 30 minutes. Pattern flagged by DLP.",
+        "priority": "low",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": False,
+        "malicious": False,  # authorized backup service account
     },
 ]
 
@@ -119,6 +232,33 @@ COMPLIANCE_TEMPLATES = [
         "needs_hash": False,
         "needs_host": True,
         "needs_ip": False,
+        "malicious": False,
+    },
+    {
+        "signature": "Unencrypted PII Egress",
+        "payload": "Plaintext CSV containing email addresses transmitted over HTTP from finance subnet.",
+        "priority": "medium",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
+        "malicious": False,
+    },
+    {
+        "signature": "Expired Certificate In Use",
+        "payload": "Internal service presenting TLS certificate that expired 14 days ago. Still accepting connections.",
+        "priority": "medium",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": False,
+        "malicious": False,
+    },
+    {
+        "signature": "Privileged Account Shared Login",
+        "payload": "Same admin credential used from two geographically distinct hosts within five minutes. No MFA.",
+        "priority": "medium",
+        "needs_hash": False,
+        "needs_host": True,
+        "needs_ip": True,
         "malicious": False,
     },
 ]
@@ -133,12 +273,21 @@ CATEGORY_TEMPLATES = {
 }
 
 HOSTS = [
-    "WKSTN-8921", "WKSTN-4192", "DB-PROD-01", "DB-PROD-02", "WEB-FRONTEND-A",
-    "MAIL-GW-01", "HR-FILE-SHARE", "DEV-STAGING", "VPN-GATEWAY", "CEO-LAPTOP"
+    "WKSTN-8921", "WKSTN-4192", "WKSTN-7710", "WKSTN-2055",
+    "DB-PROD-01", "DB-PROD-02", "DB-PROD-03",
+    "WEB-FRONTEND-A", "WEB-FRONTEND-B", "API-GATEWAY-01",
+    "MAIL-GW-01", "MAIL-GW-02",
+    "HR-FILE-SHARE", "FIN-FILE-SHARE", "DEV-STAGING",
+    "VPN-GATEWAY", "VPN-GATEWAY-DR", "CEO-LAPTOP", "CFO-LAPTOP",
+    "BACKUP-SRV-01", "AD-DC-PRIMARY", "AD-DC-SECONDARY",
 ]
 
 CRITICAL_INFRASTRUCTURE = [
-    "DB-PROD-01", "DB-PROD-02", "WEB-FRONTEND-A", "VPN-GATEWAY", "CEO-LAPTOP"
+    "DB-PROD-01", "DB-PROD-02", "DB-PROD-03",
+    "WEB-FRONTEND-A", "WEB-FRONTEND-B", "API-GATEWAY-01",
+    "VPN-GATEWAY", "VPN-GATEWAY-DR",
+    "CEO-LAPTOP", "CFO-LAPTOP",
+    "AD-DC-PRIMARY", "AD-DC-SECONDARY",
 ]
 
 DEPARTMENTS = ["tier1", "networking", "incident_response", "legal", "false_positive"]
